@@ -5,6 +5,7 @@
 <title>PowerNotes</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
+/* --- 既存のスタイルをほぼそのまま --- */
 body{margin:0;padding:16px;font-family:sans-serif;font-size:16px;}
 section{max-width:800px;margin:auto;position:relative;}
 [hidden]{display:none;}
@@ -91,16 +92,13 @@ button{cursor:pointer;}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-/* ---------------- Firebase 初期化 ---------------- */
 const firebaseConfig = { apiKey:"AIzaSyCdDf0GH80PoGlcbk2yjlaVQfP01Gk9m18", authDomain:"noteeditor-ba1db.firebaseapp.com", projectId:"noteeditor-ba1db" };
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 
-/* ---------------- DOM ---------------- */
+/* ------------------- DOM ------------------- */
 const views={login:document.getElementById('view-login'),list:document.getElementById('view-list'),trash:document.getElementById('view-trash'),editor:document.getElementById('view-editor')};
 const emailInput=document.getElementById('email');
 const passwordInput=document.getElementById('password');
@@ -120,11 +118,10 @@ const closePreview=document.getElementById('close-preview');
 let currentMemoId=null;
 let longPressTimer=null;
 
-/* ---------------- Helpers ---------------- */
 function showToast(msg,d=2000){ toast.textContent=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),d); }
 function show(view){ Object.values(views).forEach(v=>v.hidden=true); views[view].hidden=false; }
 
-/* ---------------- Auth ---------------- */
+/* ------------------- Auth ------------------- */
 const provider=new GoogleAuthProvider();
 
 document.getElementById('login').onclick=()=>signInWithEmailAndPassword(auth,emailInput.value,passwordInput.value);
@@ -133,16 +130,16 @@ document.getElementById('google-login').onclick=async()=>{ try{ await signInWith
 
 userIcon.onclick=()=>{ userMenu.style.display=(userMenu.style.display==='block')?'none':'block'; }
 document.getElementById('switch-account').onclick=async()=>{ userMenu.style.display='none'; try{ await signInWithPopup(auth,provider); } catch(e){ alert("切替失敗"); } }
-document.getElementById('logout-btn').onclick=()=>{ userMenu.style.display='none'; signOut(auth); location.href='/index.html#/login'; }
+document.getElementById('logout-btn').onclick=()=>{ userMenu.style.display='none'; signOut(auth); location.hash='#login'; }
 
 onAuthStateChanged(auth,user=>{
   if(user){
     if(user.photoURL) userIcon.src=user.photoURL;
-    location.href = '/index.html#/list';
-  } else location.href='/index.html#/login';
+    if(!location.hash || location.hash==='#login') location.hash = '#/list';
+  } else location.hash='#login';
 });
 
-/* ---------------- Load Memos ---------------- */
+/* ------------------- Load Memos ------------------- */
 async function loadMemos(){
   memoList.innerHTML='';
   const q=query(collection(db,'users',auth.currentUser.uid,'memos'),orderBy('updated','desc'));
@@ -154,7 +151,7 @@ async function loadMemos(){
     li.textContent=data.title||'Untitled';
     const rightDiv=document.createElement('div'); rightDiv.className='memo-right';
     const dateSpan=document.createElement('span'); dateSpan.className='date-span';
-    dateSpan.textContent=new Date(data.updated).toLocaleString([],{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    dateSpan.textContent=new Date(data.updated).toLocaleString();
     const menuBtn=document.createElement('button'); menuBtn.textContent='…'; menuBtn.className='menu-btn';
     const menuPopup=document.createElement('div'); menuPopup.className='menu-popup';
     const copyAction=document.createElement('button'); copyAction.textContent='Copy'; copyAction.onclick=async(e)=>{ e.stopPropagation(); navigator.clipboard.writeText(data.content||''); showToast('Copied'); menuPopup.style.display='none'; }
@@ -163,17 +160,15 @@ async function loadMemos(){
     menuBtn.onclick=(e)=>{ e.stopPropagation(); menuPopup.style.display=(menuPopup.style.display==='block')?'none':'block'; }
     rightDiv.append(dateSpan,menuBtn,menuPopup);
     li.appendChild(rightDiv);
-
     li.addEventListener('mousedown',()=>{ longPressTimer=setTimeout(()=>{ showPreview(d.id,data.title,data.content); },500); });
     li.addEventListener('mouseup',()=>{ clearTimeout(longPressTimer); });
     li.addEventListener('mouseleave',()=>{ clearTimeout(longPressTimer); });
-
-    li.onclick=()=> location.href=`/index.html#/editor/${d.id}`;
+    li.onclick=()=>location.hash=`#/editor/${d.id}`;
     memoList.appendChild(li);
   });
 }
 
-/* ---------------- Trash ---------------- */
+/* ------------------- Trash ------------------- */
 async function loadTrash(){
   trashList.innerHTML='';
   const thirtyDaysAgo = Date.now() - 30*24*60*60*1000;
@@ -186,7 +181,7 @@ async function loadTrash(){
     li.textContent=data.title||'Untitled';
     const rightDiv=document.createElement('div'); rightDiv.className='memo-right';
     const dateSpan=document.createElement('span'); dateSpan.className='date-span';
-    dateSpan.textContent=new Date(data.deletedAt).toLocaleString([],{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    dateSpan.textContent=new Date(data.deletedAt).toLocaleString();
     const restoreBtn=document.createElement('button'); restoreBtn.textContent='Restore'; restoreBtn.onclick=async(e)=>{ e.stopPropagation(); await setDoc(doc(db,'users',auth.currentUser.uid,'memos',d.id),{deletedAt:null},{merge:true}); li.remove(); showToast('Restored'); }
     const deleteBtn=document.createElement('button'); deleteBtn.textContent='Delete'; deleteBtn.onclick=async(e)=>{ e.stopPropagation(); await setDoc(doc(db,'users',auth.currentUser.uid,'memos',d.id),{deletedAt:Date.now()-31*24*60*60*1000},{merge:true}); li.remove(); showToast('Deleted'); }
     rightDiv.append(dateSpan,restoreBtn,deleteBtn);
@@ -195,7 +190,7 @@ async function loadTrash(){
   });
 }
 
-/* ---------------- Editor ---------------- */
+/* ------------------- Editor ------------------- */
 async function openEditor(id){
   currentMemoId=id;
   const snap=await getDoc(doc(db,'users',auth.currentUser.uid,'memos',id));
@@ -213,55 +208,44 @@ async function saveMemo(){
 editor.addEventListener('input',saveMemo);
 titleInput.addEventListener('input',saveMemo);
 
-/* ---------------- 画像貼り付け ---------------- */
-editor.addEventListener('paste', async e => {
-  const items = e.clipboardData.items;
-  const range = document.getSelection().getRangeAt(0);
-  for (const item of items) {
-    if (item.type.startsWith('image/')) {
-      const file = item.getAsFile();
-      const fileRef = ref(storage, `users/${auth.currentUser.uid}/images/${Date.now()}-${file.name}`);
-      await uploadBytes(fileRef, file);
-      const url = await getDownloadURL(fileRef);
-      const img = document.createElement('img');
-      img.src = url;
-      range.insertNode(img);
-      range.collapse(false);
-      saveMemo();
-      return;
-    }
-  }
-});
-
-/* ---------------- Preview ---------------- */
+/* ------------------- Preview ------------------- */
 function showPreview(id,title,content){
   previewContent.innerHTML=`<strong>${title}</strong><br>${content}`;
   preview.hidden=false;
   copyBtn.onclick=()=>{ navigator.clipboard.writeText(content||''); showToast('Copied'); }
-  deleteBtn.onclick=async()=>{ await setDoc(doc(db,'users',auth.currentUser.uid,'memos',id),{deletedAt:Date.now()},{merge:true}); preview.hidden=true; loadMemos(); showToast('Moved to Trash'); }
+  deleteBtn.onclick=async()=>{ await setDoc(doc(db,'users',auth.currentUser.uid,'memos',id),{deletedAt:Date.now()},{merge:true}); preview.hidden=true; await loadMemos(); showToast('Moved to Trash'); }
   closePreview.onclick=()=>preview.hidden=true;
 }
 
-/* ---------------- Navigation ---------------- */
-window.addEventListener('load', navigate);
+/* ------------------- Navigation / Hash ------------------- */
+document.addEventListener('DOMContentLoaded', navigate);
 window.addEventListener('hashchange', navigate);
 
-function navigate(){
+async function navigate(){
   const hash = location.hash;
-  if(hash.startsWith('#/editor/')) openEditor(hash.split('/')[2]);
-  else if(hash === '#/list' || hash==='') { show('list'); loadMemos(); }
-  else if(hash === '#/trash') { show('trash'); loadTrash(); }
+  if(hash.startsWith('#/editor/')) {
+    await openEditor(hash.split('/')[2]);
+  }
+  else if(hash === '#/list' || hash === '') {
+    await loadMemos();
+    show('list');
+  }
+  else if(hash === '#/trash') {
+    await loadTrash();
+    show('trash');
+  }
   else if(hash === '#login') show('login');
 }
 
-/* ---------------- ボタン URL 指定 ---------------- */
-document.getElementById('back').onclick = () => location.href = '/index.html#/list';
-document.getElementById('back-list').onclick = () => location.href = '/index.html#/list';
-document.getElementById('go-trash').onclick = () => location.href = '/index.html#/trash';
-document.getElementById('new-memo').onclick = async () => {
-  const refDoc = await addDoc(collection(db,'users',auth.currentUser.uid,'memos'), {title:'', content:'', updated:Date.now(), deletedAt:null});
-  location.href = `/index.html#/editor/${refDoc.id}`;
+/* ------------------- Buttons ------------------- */
+document.getElementById('back').onclick=()=>location.hash='#/list';
+document.getElementById('back-list').onclick=()=>location.hash='#/list';
+document.getElementById('go-trash').onclick=()=>location.hash='#/trash';
+document.getElementById('new-memo').onclick=async()=>{
+  const ref=await addDoc(collection(db,'users',auth.currentUser.uid,'memos'),{title:'',content:'',updated:Date.now(),deletedAt:null});
+  location.hash=`#/editor/${ref.id}`;
 };
+
 </script>
 </body>
 </html>
