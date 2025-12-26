@@ -218,6 +218,25 @@ function showPreview(id,title,content){
 }
 
 /* ------------------- Navigation / Hash ------------------- */
+onAuthStateChanged(auth, user => {
+  if(user){
+    if(user.photoURL) userIcon.src=user.photoURL;
+    // ユーザーが認証されてからナビゲート
+    if(!location.hash || location.hash==='#login') location.hash = '#/list';
+    navigate();
+  } else {
+    location.hash = '#login';
+  }
+});
+
+// ハッシュ変更時はユーザーがログインしている場合のみ
+window.addEventListener('hashchange', () => {
+  if(auth.currentUser) navigate();
+});
+// ハッシュ変更時はユーザーがログインしている場合のみ
+window.addEventListener('hashchange', () => {
+  if(auth.currentUser) navigate();
+});
 document.addEventListener('DOMContentLoaded', navigate);
 window.addEventListener('hashchange', navigate);
 
