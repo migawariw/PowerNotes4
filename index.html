@@ -132,13 +132,19 @@ userIcon.onclick=()=>{ userMenu.style.display=(userMenu.style.display==='block')
 document.getElementById('switch-account').onclick=async()=>{ userMenu.style.display='none'; try{ await signInWithPopup(auth,provider); } catch(e){ alert("切替失敗"); } }
 document.getElementById('logout-btn').onclick=()=>{ userMenu.style.display='none'; signOut(auth); location.hash='#login'; }
 
-onAuthStateChanged(auth,user=>{
+onAuthStateChanged(auth, user => {
   if(user){
     if(user.photoURL) userIcon.src=user.photoURL;
     if(!location.hash || location.hash==='#login') location.hash = '#/list';
-  } else location.hash='#login';
+    navigate(); // <- ここで一度だけ呼ぶ
+  } else {
+    location.hash = '#login';
+  }
 });
 
+window.addEventListener('hashchange', () => {
+  if(auth.currentUser) navigate(); // <- 認証済みの場合のみ
+});
 /* ------------------- Load Memos ------------------- */
 async function loadMemos(){
   memoList.innerHTML='';
